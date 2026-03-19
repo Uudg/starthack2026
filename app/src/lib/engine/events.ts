@@ -3,16 +3,12 @@ import type {
   ScheduledEvent,
   ChainState,
   SimulationState,
-  ContributionModifier,
+  Seed,
 } from "@/lib/types";
-import type { Seed } from "@/lib/types";
 import {
   applyLumpSum,
   moveAllToCash,
 } from "@/lib/engine/portfolio";
-
-// Suppress unused import warning — ContributionModifier is used structurally via spread
-type _ContributionModifier = ContributionModifier;
 
 export const LIFE_EVENTS: Record<string, LifeEventDefinition> = {
   "career.opportunity": {
@@ -245,20 +241,30 @@ export function scheduleInitialEvents(
     { chain: "crisis", key: "crisis.windfall", tick: Math.max(windfall, crashTick + 30) },
   ];
 
-  // Sort by tick
+  // Sort, then resolve conflicts until stable (handles cascading collisions)
   raw.sort((a, b) => a.tick - b.tick);
-
-  // Resolve conflicts: no two events within 15 ticks
-  for (let i = 1; i < raw.length; i++) {
-    if (raw[i].tick - raw[i - 1].tick < 15) {
-      raw[i].tick = raw[i - 1].tick + 20;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 1; i < raw.length; i++) {
+      if (raw[i].tick - raw[i - 1].tick < 15) {
+        raw[i] = { ...raw[i], tick: raw[i - 1].tick + 20 };
+        changed = true;
+      }
     }
   }
 
-  // Push back any events in last 30 ticks
-  for (const ev of raw) {
-    if (ev.tick > totalTicks - 30) {
-      ev.tick = totalTicks - 30;
+  // Clamp to last-30 boundary (no mutation — replace with new objects)
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i].tick > totalTicks - 30) {
+      raw[i] = { ...raw[i], tick: totalTicks - 30 };
+    }
+  }
+
+  // Re-resolve conflicts after clamping (walk backwards so earlier events move earlier)
+  for (let i = raw.length - 2; i >= 0; i--) {
+    if (raw[i + 1].tick - raw[i].tick < 15) {
+      raw[i] = { ...raw[i], tick: Math.max(1, raw[i + 1].tick - 20) };
     }
   }
 
