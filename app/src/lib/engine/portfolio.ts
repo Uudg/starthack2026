@@ -14,7 +14,7 @@ export function calculateReturns(
     if (pos.assetId === "cash") return pos;
     const priceNow = prices[pos.assetId]?.[tick];
     const pricePrev = prices[pos.assetId]?.[tick - 1];
-    if (!priceNow || !pricePrev || pricePrev === 0) return pos;
+    if (priceNow === undefined || pricePrev === undefined || pricePrev === 0) return pos;
     const weeklyReturn = (priceNow - pricePrev) / pricePrev;
     const newValue = pos.value * (1 + weeklyReturn);
     return { ...pos, value: Math.max(newValue, 0) };
@@ -39,7 +39,7 @@ export function applyContribution(
   positions: PortfolioPosition[],
   amount: number,
 ): PortfolioPosition[] {
-  const total = positions.reduce((s, p) => s + p.value, 0);
+  const total = getTotalPortfolio(positions);
   if (total === 0 || amount === 0) return positions;
   return positions.map((pos) => ({
     ...pos,
@@ -52,7 +52,7 @@ export function applyLumpSum(
   positions: PortfolioPosition[],
   amount: number,
 ): PortfolioPosition[] {
-  const total = positions.reduce((s, p) => s + p.value, 0);
+  const total = getTotalPortfolio(positions);
   if (total === 0) return positions;
   return positions.map((pos) => ({
     ...pos,
@@ -64,7 +64,7 @@ export function applyLumpSum(
 export function moveAllToCash(
   positions: PortfolioPosition[],
 ): PortfolioPosition[] {
-  const total = positions.reduce((s, p) => s + p.value, 0);
+  const total = getTotalPortfolio(positions);
   return positions.map((pos) =>
     pos.assetId === "cash"
       ? { ...pos, value: total, pct: 100 }
