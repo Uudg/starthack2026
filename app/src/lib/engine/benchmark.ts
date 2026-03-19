@@ -33,6 +33,7 @@ export function calculateBenchmark(config: BenchmarkConfig): number {
 
   for (let tick = 1; tick <= totalTicks; tick++) {
     positions = calculateReturns(positions, prices, tick);
+    // Monthly contribution: every 4th tick = 1 month. Must match simulation.ts cadence.
     if (tick % 4 === 0) {
       positions = applyContribution(positions, monthlyContribution);
     }

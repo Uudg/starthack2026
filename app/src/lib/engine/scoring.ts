@@ -28,6 +28,7 @@ export function calculateCompositeScore(input: ScoringInput): number {
 
   // Portfolio score (0–100)
   const ratio = benchmarkFinal > 0 ? finalPortfolio / benchmarkFinal : 0;
+  // 80 points for matching benchmark; need to beat by 25% for full 100. Intentional design.
   const portfolioScore = Math.min(ratio * 80, 100);
 
   // Discipline score (0–100)
