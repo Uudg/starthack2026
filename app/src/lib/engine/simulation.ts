@@ -23,7 +23,7 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface SimConfig {
+export interface SimConfig {
   seed: Seed;
   assets: Asset[];
   prices: Record<string, number[]>;
@@ -32,7 +32,7 @@ interface SimConfig {
   allocations: Array<{ assetId: string; pct: number }>;
 }
 
-interface TickResult {
+export interface TickResult {
   state: SimulationState;
   eventToFire: LifeEventDefinition | null;
   historicalNews: HistoricalEvent | null;
@@ -43,7 +43,7 @@ interface TickResult {
 
 export function initSimulation(config: SimConfig): SimulationState {
   const { seed, prices, startingPortfolio, monthlyContribution, allocations } = config;
-  const totalTicks = seed.total_weeks ?? seed.end_week - seed.start_week;
+  const totalTicks = seed.total_weeks;
 
   const positions: PortfolioPosition[] = allocations.map((a) => ({
     assetId: a.assetId,
@@ -127,6 +127,9 @@ export function tickSimulation(state: SimulationState, seed: Seed): TickResult {
   // 7. Check for scheduled event at this tick
   const firedEvent = state.scheduledEvents.find((e) => e.tick === currentTick);
   const eventToFire = firedEvent ? (LIFE_EVENTS[firedEvent.key] ?? null) : null;
+  const remainingScheduledEvents = firedEvent
+    ? state.scheduledEvents.filter((e) => e !== firedEvent)
+    : state.scheduledEvents;
 
   // 8. Check for historical news flash
   const historicalNews =
@@ -143,6 +146,7 @@ export function tickSimulation(state: SimulationState, seed: Seed): TickResult {
     totalPortfolio,
     effectiveContribution,
     contributionModifiers,
+    scheduledEvents: remainingScheduledEvents,
     peakPortfolio,
     currentDrawdownPct,
     maxDrawdownPct,

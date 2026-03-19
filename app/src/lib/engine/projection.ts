@@ -1,7 +1,7 @@
 // src/lib/engine/projection.ts
 import type { PortfolioPosition } from "@/lib/types";
 
-interface ProjectionConfig {
+export interface ProjectionConfig {
   currentPortfolio: number;
   positions: PortfolioPosition[];
   monthlyContribution: number;
@@ -11,7 +11,7 @@ interface ProjectionConfig {
   numPaths?: number;
 }
 
-interface ProjectionResult {
+export interface ProjectionResult {
   percentiles: {
     p5: number[];
     p25: number[];
@@ -24,7 +24,7 @@ interface ProjectionResult {
 }
 
 function randomNormal(): number {
-  const u1 = Math.random();
+  const u1 = Math.max(Number.EPSILON, Math.random()); // prevent log(0) → -Infinity
   const u2 = Math.random();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
@@ -63,7 +63,7 @@ export function calculateProjection(config: ProjectionConfig): ProjectionResult 
         logReturns.push(Math.log(curr / prev));
       }
     }
-    if (logReturns.length === 0) continue;
+    if (logReturns.length < 8) continue;
     const meanWeekly = logReturns.reduce((s, r) => s + r, 0) / logReturns.length;
     const variance =
       logReturns.reduce((s, r) => s + (r - meanWeekly) ** 2, 0) / logReturns.length;
