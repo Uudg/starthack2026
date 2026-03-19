@@ -107,6 +107,8 @@ export function useGameEngine(): GameEngineHook {
 
   // Timer refs
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const newsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speedRef = useRef<1 | 3 | 5>(3);
   const stateRef = useRef<SimulationState | null>(null);
   const seedRef = useRef<Seed | null>(null);
@@ -120,15 +122,6 @@ export function useGameEngine(): GameEngineHook {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
-
-  // Keep refs in sync for use inside stable callbacks
-  useEffect(() => {
-    benchmarkFinalRef.current = benchmarkFinal;
-  }, [benchmarkFinal]);
-
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
 
   // ── Derived values ──
   const currentTick = state?.currentTick ?? 0;
@@ -252,7 +245,11 @@ export function useGameEngine(): GameEngineHook {
     // Historical news flash (auto-clears after 5 seconds in UI)
     if (news) {
       setHistoricalNews(news);
-      setTimeout(() => setHistoricalNews(null), 5000);
+      if (newsTimeoutRef.current) clearTimeout(newsTimeoutRef.current);
+      newsTimeoutRef.current = setTimeout(() => {
+        newsTimeoutRef.current = null;
+        setHistoricalNews(null);
+      }, 5000);
     }
 
     // Update projection every 4th tick (monthly) for performance
@@ -318,6 +315,7 @@ export function useGameEngine(): GameEngineHook {
       });
       const session = await res.json();
       setSessionId(session.id);
+      sessionIdRef.current = session.id;
 
       // Store refs for the tick loop
       seedRef.current = config.seed;
@@ -343,6 +341,7 @@ export function useGameEngine(): GameEngineHook {
         allocations: config.allocations,
       });
       setBenchmarkFinal(benchmark);
+      benchmarkFinalRef.current = benchmark;
 
       // Initial projection
       updateProjection(simState);
@@ -428,7 +427,9 @@ export function useGameEngine(): GameEngineHook {
       setActiveEventStats(null);
 
       // Brief pause to show the effect, then resume
-      setTimeout(() => {
+      if (eventResumeTimeoutRef.current) clearTimeout(eventResumeTimeoutRef.current);
+      eventResumeTimeoutRef.current = setTimeout(() => {
+        eventResumeTimeoutRef.current = null;
         setPhase("simulating");
         startTimer();
       }, 1500);
@@ -440,6 +441,8 @@ export function useGameEngine(): GameEngineHook {
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (eventResumeTimeoutRef.current) clearTimeout(eventResumeTimeoutRef.current);
+      if (newsTimeoutRef.current) clearTimeout(newsTimeoutRef.current);
     };
   }, []);
 
