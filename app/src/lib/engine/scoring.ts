@@ -1,5 +1,9 @@
 // src/lib/engine/scoring.ts
-import type { BehavioralProfile, ChainState, TriggeredEvent } from "@/lib/types";
+import type {
+  BehavioralProfile,
+  ChainState,
+  TriggeredEvent,
+} from "@/lib/types";
 
 interface ScoringInput {
   finalPortfolio: number;
@@ -40,7 +44,8 @@ export function calculateCompositeScore(input: ScoringInput): number {
 
   // Event score (0–100)
   let eventRaw = 0;
-  const maxPossible = triggeredEvents.length > 0 ? triggeredEvents.length * 25 : 1;
+  const maxPossible =
+    triggeredEvents.length > 0 ? triggeredEvents.length * 25 : 1;
 
   for (const ev of triggeredEvents) {
     if (ev.key === "crisis.crash_news") {
@@ -54,17 +59,20 @@ export function calculateCompositeScore(input: ScoringInput): number {
     }
   }
 
-  const eventScore = triggeredEvents.length === 0
-    ? 50
-    : Math.min((eventRaw / maxPossible) * 100, 100);
+  const eventScore =
+    triggeredEvents.length === 0
+      ? 50
+      : Math.min((eventRaw / maxPossible) * 100, 100);
 
   const composite =
     portfolioScore * 0.4 + disciplineScore * 0.35 + eventScore * 0.25;
 
-  return Math.round(composite * 10) / 10;
+  return Math.round(composite * 100) / 100;
 }
 
-export function detectBehavioralProfile(input: ScoringInput): BehavioralProfile {
+export function detectBehavioralProfile(
+  input: ScoringInput,
+): BehavioralProfile {
   const {
     panicRebalances,
     chainState,
@@ -108,7 +116,10 @@ export function getProfileDisplay(
       : 0;
   const rebalances = input?.totalRebalances ?? 0;
 
-  const map: Record<BehavioralProfile, { name: string; icon: string; description: string }> = {
+  const map: Record<
+    BehavioralProfile,
+    { name: string; icon: string; description: string }
+  > = {
     panic_seller: {
       name: "The Panic Seller",
       icon: "🔴",
@@ -139,8 +150,7 @@ export function getProfileDisplay(
     momentum_chaser: {
       name: "The Active Investor",
       icon: "📊",
-      description:
-        "You stayed engaged and made adjustments along the way.",
+      description: "You stayed engaged and made adjustments along the way.",
     },
   };
 

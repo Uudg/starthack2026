@@ -2,6 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
 
+// Auto-load .env.local (tsx doesn't load env files automatically)
+const envFile = path.join(process.cwd(), '.env.local');
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) process.env[match[1].trim()] = match[2].trim();
+  }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface AssetRow {
@@ -464,18 +473,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ── Batch Insert Helper ────────────────────────────────────────────────────
 
-async function batchInsert<T extends object>(
+async function batchUpsert<T extends object>(
   table: string,
   rows: T[],
+  onConflict: string,
   batchSize = 500
 ): Promise<void> {
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
-    const { error } = await supabase.from(table).insert(batch);
-    if (error) throw new Error(`Insert into ${table} failed: ${error.message}`);
+    const { error } = await supabase.from(table).upsert(batch, { onConflict });
+    if (error) throw new Error(`Upsert into ${table} failed: ${error.message}`);
     process.stdout.write(`  ${table}: ${Math.min(i + batchSize, rows.length)}/${rows.length}\r`);
   }
-  console.log(`  ✅ ${table}: ${rows.length} rows inserted`);
+  console.log(`  ✅ ${table}: ${rows.length} rows upserted`);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -483,18 +493,7 @@ async function batchInsert<T extends object>(
 async function main() {
   console.log('🚀 Starting data preparation...\n');
 
-  // ── 1. Truncate tables (idempotent, FK order) ───────────────────────────
-  console.log('🗑️  Clearing tables...');
-  // seed_assets has no simple id col, delete by seed_id >= ''
-  let { error: e1 } = await supabase.from('seed_assets').delete().gte('seed_id', '');
-  if (e1) throw new Error(`Clear seed_assets failed: ${e1.message}`);
-  let { error: e2 } = await supabase.from('seeds').delete().gte('id', '');
-  if (e2) throw new Error(`Clear seeds failed: ${e2.message}`);
-  let { error: e3 } = await supabase.from('weekly_prices').delete().gte('id', 0);
-  if (e3) throw new Error(`Clear weekly_prices failed: ${e3.message}`);
-  let { error: e4 } = await supabase.from('assets').delete().gte('id', '');
-  if (e4) throw new Error(`Clear assets failed: ${e4.message}`);
-  console.log('✅ Tables cleared\n');
+  // (idempotent via upsert — no delete needed)
 
   // ── 2. Parse all CSVs ───────────────────────────────────────────────────
   console.log('📂 Parsing CSV files...');
@@ -516,16 +515,16 @@ async function main() {
   }
   console.log(`✅ Parsed ${allPrices.size} assets\n`);
 
-  // ── 3. Insert assets ────────────────────────────────────────────────────
-  console.log('💾 Inserting assets...');
-  await batchInsert('assets', ASSETS);
+  // ── 3. Upsert assets ────────────────────────────────────────────────────
+  console.log('💾 Upserting assets...');
+  await batchUpsert('assets', ASSETS, 'id');
   console.log();
 
-  // ── 4. Insert weekly prices ─────────────────────────────────────────────
-  console.log('💾 Inserting weekly prices...');
+  // ── 4. Upsert weekly prices ─────────────────────────────────────────────
+  console.log('💾 Upserting weekly prices...');
   const allPriceRows: WeeklyPriceRow[] = [];
   for (const rows of allPrices.values()) allPriceRows.push(...rows);
-  await batchInsert('weekly_prices', allPriceRows);
+  await batchUpsert('weekly_prices', allPriceRows, 'asset_id,week_index');
   console.log();
 
   // ── 5. Build seeds with crash detection ─────────────────────────────────
@@ -562,17 +561,17 @@ async function main() {
     };
   });
 
-  // ── 6. Insert seeds ──────────────────────────────────────────────────────
-  console.log('\n💾 Inserting seeds...');
-  await batchInsert('seeds', seedRows);
+  // ── 6. Upsert seeds ──────────────────────────────────────────────────────
+  console.log('\n💾 Upserting seeds...');
+  await batchUpsert('seeds', seedRows, 'id');
   console.log();
 
-  // ── 7. Insert seed_assets (all seeds × all assets) ──────────────────────
-  console.log('💾 Inserting seed_assets...');
+  // ── 7. Upsert seed_assets (all seeds × all assets) ──────────────────────
+  console.log('💾 Upserting seed_assets...');
   const seedAssetRows = seedRows.flatMap(seed =>
     ASSETS.map(asset => ({ seed_id: seed.id, asset_id: asset.id }))
   );
-  await batchInsert('seed_assets', seedAssetRows);
+  await batchUpsert('seed_assets', seedAssetRows, 'seed_id,asset_id');
   console.log();
 
   // ── 8. Summary ───────────────────────────────────────────────────────────

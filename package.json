@@ -1,6 +1,9 @@
 {
   "name": "starthack",
   "packageManager": "yarn@4.6.0",
+  "workspaces": [
+    "app"
+  ],
   "scripts": {
     "prepare-data": "tsx scripts/prepare-data.ts"
   },
