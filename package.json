@@ -5,6 +5,7 @@
     "app"
   ],
   "scripts": {
+    "build": "yarn workspace app build",
     "prepare-data": "tsx scripts/prepare-data.ts"
   },
   "dependencies": {
