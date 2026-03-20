@@ -1,0 +1,14 @@
+{
+  "title": "FundFight Docs",
+  "pages": [
+    "index",
+    "market-data",
+    "simulation-engine",
+    "portfolio-management",
+    "life-events",
+    "monte-carlo",
+    "scoring",
+    "ai-coach",
+    "api-reference"
+  ]
+}
