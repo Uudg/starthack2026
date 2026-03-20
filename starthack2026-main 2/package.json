@@ -1,0 +1,19 @@
+{
+  "name": "starthack",
+  "packageManager": "yarn@4.6.0",
+  "workspaces": [
+    "app"
+  ],
+  "scripts": {
+    "prepare-data": "tsx scripts/prepare-data.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.2",
+    "supabase": "^2.81.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
