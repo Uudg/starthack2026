@@ -13,6 +13,16 @@ export async function POST(request: Request) {
       .single();
 
     if (existing) {
+      // Update nickname/avatar if provided (re-onboarding)
+      if (nickname && avatar && (existing.nickname !== nickname || existing.avatar !== avatar)) {
+        const { data: updated } = await supabase
+          .from("players")
+          .update({ nickname, avatar })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        if (updated) return NextResponse.json(updated, { status: 200 });
+      }
       return NextResponse.json(existing, { status: 200 });
     }
 

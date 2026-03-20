@@ -108,6 +108,7 @@ export default function PortfolioBuilderScreen({ seedData, startingPortfolio, mo
 
   return (
     <div
+      className="grid-bg"
       style={{
         width: "100vw",
         minHeight: "100vh",
@@ -116,10 +117,39 @@ export default function PortfolioBuilderScreen({ seedData, startingPortfolio, mo
         flexDirection: "column",
         padding: "24px",
         overflow: "auto",
+        position: "relative",
       }}
     >
+      {/* Video background */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        style={{
+          position: "fixed",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: 0.1,
+          filter: "saturate(0.6)",
+          zIndex: 0,
+        }}
+      >
+        <source src="/videos/home.mp4" type="video/mp4" />
+      </video>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px", position: "relative", zIndex: 1 }}>
         <div>
           <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "14px", color: "var(--pixel-gold)" }}>
             BUILD YOUR PORTFOLIO
@@ -148,7 +178,7 @@ export default function PortfolioBuilderScreen({ seedData, startingPortfolio, mo
       </div>
 
       {/* Presets */}
-      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap", position: "relative", zIndex: 1 }}>
         <span style={{ fontFamily: "var(--font-body)", fontSize: "18px", color: "var(--muted-gray-light)", alignSelf: "center" }}>
           PRESETS:
         </span>
@@ -165,7 +195,7 @@ export default function PortfolioBuilderScreen({ seedData, startingPortfolio, mo
       </div>
 
       {/* Asset groups */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px", maxWidth: "900px", width: "100%" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px", maxWidth: "900px", width: "100%", position: "relative", zIndex: 1 }}>
         {Object.entries(grouped).map(([assetClass, groupAssets]) => (
           <div key={assetClass} className="pixel-panel">
             <div
@@ -256,6 +286,8 @@ export default function PortfolioBuilderScreen({ seedData, startingPortfolio, mo
           marginTop: "24px",
           paddingTop: "16px",
           borderTop: "2px solid var(--panel-border)",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <button

@@ -29,7 +29,7 @@ export default function GamePage() {
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
   const [seedData, setSeedData] = useState<SeedData | null>(null);
 
-  if (phase === "idle" || phase === "loading" || phase === "onboarding") {
+  if (!onboardingData) {
     return (
       <OnboardingScreen
         onComplete={(data, seed) => {
@@ -40,8 +40,8 @@ export default function GamePage() {
     );
   }
 
-  if (phase === "portfolio") {
-    if (!onboardingData || !seedData) return null;
+  if (phase === "idle" || phase === "loading" || phase === "onboarding" || phase === "portfolio") {
+    if (!seedData) return null;
     return (
       <PortfolioBuilderScreen
         seedData={seedData}

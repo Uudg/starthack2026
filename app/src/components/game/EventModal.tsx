@@ -1,12 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/lib/store/game-context";
 
 export default function EventModal() {
   const { activeEvent, activeEventStats, chooseEventOption, state } = useGame();
   const [choosing, setChoosing] = useState(false);
   const [chosen, setChosen] = useState<"a" | "b" | null>(null);
+  const [visible, setVisible] = useState(false);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Scale-in animation on mount
+  useEffect(() => {
+    if (activeEvent) {
+      requestAnimationFrame(() => setVisible(true));
+    } else {
+      setVisible(false);
+    }
+  }, [activeEvent]);
 
   if (!activeEvent) return null;
 
@@ -22,157 +33,108 @@ export default function EventModal() {
   const totalVotes = activeEventStats
     ? activeEventStats.option_a_count + activeEventStats.option_b_count
     : 0;
-  const pctA = totalVotes > 0 ? Math.round((activeEventStats!.option_a_count / totalVotes) * 100) : null;
-  const pctB = totalVotes > 0 ? Math.round((activeEventStats!.option_b_count / totalVotes) * 100) : null;
+  const pctA =
+    totalVotes > 0
+      ? Math.round((activeEventStats!.option_a_count / totalVotes) * 100)
+      : null;
+  const pctB =
+    totalVotes > 0
+      ? Math.round((activeEventStats!.option_b_count / totalVotes) * 100)
+      : null;
 
-  function SocialBar({ pct }: { pct: number | null }) {
-    if (pct === null) {
-      return (
-        <div style={{ height: "8px", background: "var(--panel-border)", animation: "pulse-glow 1s infinite" }} />
-      );
-    }
-    const filled = Math.round(pct / 10);
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <div style={{ fontFamily: "var(--font-body)", fontSize: "16px", color: "var(--pixel-green)", letterSpacing: "2px" }}>
-          {"█".repeat(filled)}{"░".repeat(10 - filled)}
-        </div>
-        <div style={{ fontFamily: "var(--font-heading)", fontSize: "9px", color: "var(--pixel-green)" }}>
-          {pct}%
-        </div>
-      </div>
-    );
-  }
+  const chainSubtitle = activeEvent.chain
+    ? activeEvent.chain.toUpperCase() + " EVENT"
+    : "MARKET EVENT";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.85)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-        animation: "fadeIn 0.3s ease",
-      }}
-    >
+    <div className="event-popup-backdrop">
       <div
-        className="pixel-panel pixel-panel--gold"
-        style={{
-          maxWidth: "600px",
-          width: "100%",
-          animation: "slide-up 0.3s ease",
-        }}
+        ref={popupRef}
+        className={`event-popup${visible ? " event-popup--visible" : ""}`}
       >
-        {/* Icon + title */}
-        <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>{activeEvent.icon}</div>
-          <h2
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "13px",
-              color: "var(--pixel-gold)",
-              textShadow: "0 0 12px var(--pixel-gold-glow)",
-              lineHeight: 1.4,
-            }}
-          >
-            {activeEvent.title}
-          </h2>
-        </div>
+        {/* Pixel corner accents */}
+        <div className="event-popup__corner event-popup__corner--tl" />
+        <div className="event-popup__corner event-popup__corner--tr" />
+        <div className="event-popup__corner event-popup__corner--bl" />
+        <div className="event-popup__corner event-popup__corner--br" />
 
-        {/* Description */}
-        <div
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "20px",
-            color: "var(--off-white)",
-            lineHeight: 1.5,
-            marginBottom: "16px",
-            padding: "12px",
-            background: "var(--terminal-bg)",
-            border: "1px solid var(--panel-border)",
-          }}
-        >
-          {activeEvent.description}
-        </div>
-
-        {/* Portfolio info */}
-        <div style={{ display: "flex", gap: "16px", marginBottom: "24px", flexWrap: "wrap" }}>
-          <div style={{ fontFamily: "var(--font-body)", fontSize: "18px", color: "var(--muted-gray-light)" }}>
-            Portfolio:{" "}
-            <span style={{ color: "var(--pixel-green)", fontFamily: "var(--font-heading)", fontSize: "11px" }}>
-              CHF {(state?.totalPortfolio ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        {/* Header */}
+        <div className="event-popup__header">
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "18px", lineHeight: 1 }}>
+              {activeEvent.icon}
             </span>
+            <h2 className="event-popup__title">{activeEvent.title}</h2>
           </div>
-          {(state?.currentDrawdownPct ?? 0) > 0 && (
-            <div style={{ fontFamily: "var(--font-body)", fontSize: "18px", color: "var(--pixel-red)" }}>
-              Drawdown: {(state?.currentDrawdownPct ?? 0).toFixed(1)}%
-            </div>
-          )}
+          <p className="event-popup__subtitle">{chainSubtitle}</p>
+        </div>
+
+        {/* Body — event description */}
+        <div className="event-popup__body">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p className="event-popup__text">{activeEvent.description}</p>
+          </div>
         </div>
 
         {/* Social proof */}
-        {totalVotes > 0 && (
-          <div style={{ fontFamily: "var(--font-body)", fontSize: "16px", color: "var(--muted-gray-light)", marginBottom: "16px", textAlign: "center" }}>
-            {totalVotes.toLocaleString()} players chose before you
-          </div>
-        )}
-
-        {/* Options */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          {(["a", "b"] as const).map((opt) => {
-            const option = opt === "a" ? activeEvent.optionA : activeEvent.optionB;
-            const pct = opt === "a" ? pctA : pctB;
-            const isChosen = chosen === opt;
-            return (
-              <button
-                key={opt}
-                onClick={() => handleChoice(opt)}
-                disabled={choosing}
+        <div className="event-popup__social">
+          {totalVotes > 0 && (
+            <>
+              <span
                 style={{
-                  background: isChosen ? "var(--pixel-gold)" : "var(--panel-bg-light)",
-                  border: `2px solid ${isChosen ? "var(--pixel-gold)" : "var(--panel-border-bright)"}`,
-                  padding: "16px",
-                  cursor: choosing ? "not-allowed" : "pointer",
-                  transition: "all 0.15s",
-                  textAlign: "left",
-                  opacity: choosing && !isChosen ? 0.5 : 1,
+                  fontFamily: "var(--font-heading)",
+                  fontSize: "16px",
+                  color: "#8899aa",
+                }}
+              >
+                {totalVotes.toLocaleString()} players faced this: {pctA}% chose
+                A &bull; {pctB}% chose B
+              </span>
+              <div
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  background: "#1e3a5f",
+                  overflow: "hidden",
+                  marginTop: "4px",
                 }}
               >
                 <div
                   style={{
-                    fontFamily: "var(--font-heading)",
-                    fontSize: "9px",
-                    color: isChosen ? "var(--deep-navy)" : "var(--off-white)",
-                    marginBottom: "8px",
+                    height: "100%",
+                    width: `${pctA}%`,
+                    background:
+                      "linear-gradient(90deg, #40c4ff, #00e676)",
+                    transition: "width 0.5s ease",
                   }}
-                >
-                  OPTION {opt.toUpperCase()}: {option.label}
-                </div>
-                <div
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Choices */}
+        <div className="event-popup__choices">
+          {(["a", "b"] as const).map((opt) => {
+            const option =
+              opt === "a" ? activeEvent.optionA : activeEvent.optionB;
+            const isChosen = chosen === opt;
+            return (
+              <div key={opt} className="event-popup__choice">
+                <button
+                  className={`pixel-btn ${
+                    opt === "b" ? "pixel-btn--red" : "pixel-btn--gold"
+                  }`}
+                  onClick={() => handleChoice(opt)}
+                  disabled={choosing}
                   style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "17px",
-                    color: isChosen ? "var(--deep-navy)" : "var(--muted-gray-light)",
-                    marginBottom: "8px",
+                    opacity: choosing && !isChosen ? 0.5 : 1,
                   }}
                 >
-                  {option.hint}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "16px",
-                    color: isChosen ? "var(--deep-navy)" : "var(--amber)",
-                    marginBottom: "8px",
-                  }}
-                >
-                  {option.effect.description}
-                </div>
-                <SocialBar pct={pct} />
-              </button>
+                  {option.label}
+                </button>
+                <p className="event-popup__choice-desc">{option.hint}</p>
+              </div>
             );
           })}
         </div>

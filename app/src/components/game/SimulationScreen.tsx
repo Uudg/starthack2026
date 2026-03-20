@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useGame } from "@/lib/store/game-context";
 import EventModal from "./EventModal";
 import RebalancePanel from "./RebalancePanel";
+import NewsOverlay from "./NewsOverlay";
 import PriceChart from "./charts/PriceChart";
 import ProjectionChart from "./charts/ProjectionChart";
 
@@ -32,245 +33,291 @@ export default function SimulationScreen() {
     currentYear,
     progressPct,
     historicalNews,
+    elapsedSeconds,
     play,
     pause,
     setSpeed,
   } = useGame();
 
   const [showRebalance, setShowRebalance] = useState(false);
+  const [introFinished, setIntroFinished] = useState(false);
+  const [activeTab, setActiveTab] = useState<"charts" | "allocation">("charts");
+  const introRef = useRef<HTMLVideoElement>(null);
+  const loopRef = useRef<HTMLVideoElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+
+  // Draggable terminal
+  const dragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0, left: 0, top: 0 });
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (!terminalRef.current) return;
+    dragging.current = true;
+    const cs = window.getComputedStyle(terminalRef.current);
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      left: parseFloat(cs.left) || 18,
+      top: parseFloat(cs.top) || 18,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    terminalRef.current.classList.add("terminal--dragging");
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current || !terminalRef.current) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    const rect = terminalRef.current.getBoundingClientRect();
+    const maxLeft = window.innerWidth - rect.width - 8;
+    const maxTop = window.innerHeight - rect.height - 8;
+    terminalRef.current.style.left = `${Math.max(8, Math.min(maxLeft, dragStart.current.left + dx))}px`;
+    terminalRef.current.style.top = `${Math.max(8, Math.min(maxTop, dragStart.current.top + dy))}px`;
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+    terminalRef.current?.classList.remove("terminal--dragging");
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("pointermove", onPointerMove as any);
+    window.addEventListener("pointerup", onPointerUp as any);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove as any);
+      window.removeEventListener("pointerup", onPointerUp as any);
+    };
+  }, [onPointerMove, onPointerUp]);
+
+  function finishIntro() {
+    if (introRef.current) introRef.current.style.display = "none";
+    if (loopRef.current) {
+      loopRef.current.style.display = "block";
+      loopRef.current.play().catch(() => {});
+    }
+    setIntroFinished(true);
+  }
 
   if (!state) return null;
 
   const isPlaying = phase === "simulating";
   const drawdown = state.currentDrawdownPct ?? 0;
   const totalPortfolio = state.totalPortfolio ?? 0;
-  const effectiveContribution = state.effectiveContribution ?? 0;
+  const startValue = state.positions.reduce((s, p) => s + p.value, 0) || totalPortfolio;
+  const returnPct = startValue > 0 ? ((totalPortfolio - startValue) / startValue) * 100 : 0;
+
+  const yearLabel =
+    currentYear <= 3 ? "GROWTH" : currentYear <= 5 ? "VOLATILITY" : currentYear <= 8 ? "RECOVERY" : "MATURITY";
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        background: "var(--deep-navy)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
-      {/* News ticker */}
-      {historicalNews && (
-        <div
-          style={{
-            background: historicalNews.type === "crash" || historicalNews.type === "shock"
-              ? "rgba(255,45,85,0.15)"
-              : "rgba(0,255,135,0.1)",
-            borderBottom: `1px solid ${historicalNews.type === "crash" || historicalNews.type === "shock" ? "var(--pixel-red)" : "var(--pixel-green)"}`,
-            overflow: "hidden",
-            height: "36px",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "18px",
-              color: historicalNews.type === "crash" || historicalNews.type === "shock"
-                ? "var(--pixel-red)"
-                : "var(--pixel-green)",
-              whiteSpace: "nowrap",
-              animation: "ticker-scroll 12s linear",
-              paddingLeft: "100%",
-            }}
-          >
-            📰 {historicalNews.name}
-          </div>
-        </div>
-      )}
-
-      {/* Top bar */}
-      <div
-        className="pixel-panel"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-          borderLeft: "none",
-          borderRight: "none",
-          borderTop: "none",
-          padding: "12px 20px",
-        }}
-      >
-        {/* Portfolio value */}
-        <div>
-          <div style={{ fontFamily: "var(--font-body)", fontSize: "16px", color: "var(--muted-gray-light)", marginBottom: "2px" }}>
-            PORTFOLIO VALUE
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "clamp(14px, 2.5vw, 22px)",
-              color: "var(--pixel-gold)",
-              textShadow: "0 0 12px var(--pixel-gold-glow)",
-            }}
-          >
-            {formatCHF(totalPortfolio)}
-          </div>
-        </div>
-
-        {/* Year + progress */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: "10px", color: "var(--off-white)", marginBottom: "8px" }}>
-            YEAR {currentYear} OF 10
-          </div>
-          <div
-            style={{
-              width: "200px",
-              height: "8px",
-              background: "var(--terminal-bg)",
-              border: "1px solid var(--panel-border)",
-              position: "relative",
-            }}
-          >
-            <div
-              style={{
-                width: `${progressPct}%`,
-                height: "100%",
-                background: "var(--pixel-green)",
-                boxShadow: "0 0 6px var(--pixel-green-glow)",
-                transition: "width 0.5s ease",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Drawdown badge */}
-        {drawdown > 5 && (
-          <div
-            style={{
-              background: "rgba(255,45,85,0.15)",
-              border: "1px solid var(--pixel-red)",
-              padding: "6px 12px",
-              fontFamily: "var(--font-heading)",
-              fontSize: "9px",
-              color: "var(--pixel-red)",
-            }}
-          >
-            ↓ {drawdown.toFixed(1)}% DRAWDOWN
-          </div>
-        )}
-
-        {/* Contribution */}
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "var(--font-body)", fontSize: "16px", color: "var(--muted-gray-light)" }}>
-            MONTHLY CONTRIB
-          </div>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: "10px", color: "var(--pixel-green)" }}>
-            {formatCHF(effectiveContribution / 4)}
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {/* Speed buttons */}
-          {([1, 3, 5] as const).map((s) => (
-            <button
-              key={s}
-              className={`pixel-btn ${state.speed === s ? "pixel-btn--blue" : "pixel-btn--ghost"}`}
-              style={{ fontSize: "8px", padding: "6px 10px" }}
-              onClick={() => setSpeed(s)}
+    <div className="trading-screen scanlines">
+      <div className="trading-screen__layout">
+        {/* Video Scene */}
+        <div className="trading-screen__room">
+          <div className="trading-screen__video-stage">
+            <video
+              ref={introRef}
+              className="trading-screen__bg-video"
+              autoPlay
+              muted
+              playsInline
+              onEnded={finishIntro}
             >
-              {s}×
+              <source src="/videos/1ch_beginning.mp4" type="video/mp4" />
+            </video>
+            <video
+              ref={loopRef}
+              className="trading-screen__bg-video"
+              muted
+              playsInline
+              loop
+              style={{ display: "none" }}
+            >
+              <source src="/videos/1ch_loop.mp4" type="video/mp4" />
+            </video>
+          </div>
+
+          {/* Phase badge */}
+          <div className="trading-screen__phase">
+            YEAR {currentYear} — {yearLabel}
+          </div>
+
+          {/* Season badge */}
+          <div className="trading-screen__season">
+            {drawdown > 10 ? "⚠ DRAWDOWN" : isPlaying ? "▶ SIMULATING" : "⏸ PAUSED"}
+          </div>
+
+          {/* Skip intro */}
+          {!introFinished && (
+            <button className="trading-screen__skip-intro" onClick={finishIntro}>
+              SKIP INTRO
             </button>
-          ))}
-
-          {/* Play/Pause */}
-          <button
-            className={`pixel-btn ${isPlaying ? "pixel-btn--red" : "pixel-btn--gold"}`}
-            style={{ fontSize: "8px", padding: "8px 16px", minWidth: "60px" }}
-            onClick={isPlaying ? pause : play}
-          >
-            {isPlaying ? "⏸ PAUSE" : "▶ PLAY"}
-          </button>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0", overflow: "hidden" }}>
-        {/* Left: Price chart */}
-        <div className="pixel-panel pixel-panel--bright" style={{ margin: "12px 6px 12px 12px", overflow: "hidden" }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: "9px", color: "var(--muted-gray-light)", marginBottom: "8px" }}>
-            PRICE PERFORMANCE (normalized)
-          </div>
-          <PriceChart state={state} />
-        </div>
-
-        {/* Right: Projection chart */}
-        <div className="pixel-panel pixel-panel--bright" style={{ margin: "12px 12px 12px 6px", overflow: "hidden" }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: "9px", color: "var(--muted-gray-light)", marginBottom: "8px" }}>
-            PORTFOLIO PROJECTION
-          </div>
-          {projection ? (
-            <ProjectionChart projection={projection} currentPortfolio={totalPortfolio} />
-          ) : (
-            <div style={{ fontFamily: "var(--font-body)", color: "var(--muted-gray)", padding: "16px", textAlign: "center" }}>
-              Calculating projection...
-            </div>
           )}
         </div>
-      </div>
 
-      {/* Bottom allocation bar */}
-      <div
-        className="pixel-panel"
-        style={{
-          borderLeft: "none",
-          borderRight: "none",
-          borderBottom: "none",
-          padding: "12px 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: "16px",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Allocation segments */}
-        <div style={{ flex: 1, display: "flex", gap: "4px", minWidth: "200px", height: "32px", overflow: "hidden" }}>
-          {state.positions.filter((p) => p.pct > 0).map((pos) => (
-            <div
-              key={pos.assetId}
-              title={`${pos.assetId}: ${pos.pct}% — ${formatCHF(pos.value)}`}
-              style={{
-                flex: pos.pct,
-                background: ASSET_COLORS[pos.assetId] ?? "#4a6580",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "var(--font-body)",
-                fontSize: "14px",
-                color: "var(--deep-navy)",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                fontWeight: "bold",
-              }}
-            >
-              {pos.pct >= 10 ? `${pos.assetId.split("_")[0].toUpperCase()} ${pos.pct}%` : ""}
-            </div>
-          ))}
-        </div>
-
-        {/* Rebalance button */}
-        <button
-          className="pixel-btn pixel-btn--ghost"
-          style={{ fontSize: "8px", padding: "8px 16px" }}
-          onClick={() => setShowRebalance(true)}
+        {/* Draggable Terminal */}
+        <div
+          ref={terminalRef}
+          className={`trading-screen__terminal${!introFinished ? " trading-screen__terminal--hidden" : " trading-screen__terminal--enter"}`}
         >
-          ⚖ REBALANCE
-        </button>
+          <div className="terminal-monitor">
+            <div className="terminal-bezel">
+              <div className="terminal-screen">
+                {/* Header */}
+                <div className="terminal-header" onPointerDown={onPointerDown}>
+                  <span className="terminal-header__title">▶ TRADING TERMINAL</span>
+                  <span className="terminal-header__info">
+                    Year {currentYear} • Week {((state.currentTick ?? 0) % 52) + 1}
+                  </span>
+                </div>
+
+                {/* Tabs */}
+                <div className="terminal-tabs">
+                  <button
+                    className={`terminal-tab${activeTab === "charts" ? " terminal-tab--active" : ""}`}
+                    onClick={() => setActiveTab("charts")}
+                  >
+                    CHARTS
+                  </button>
+                  <button
+                    className={`terminal-tab${activeTab === "allocation" ? " terminal-tab--active" : ""}`}
+                    onClick={() => setActiveTab("allocation")}
+                  >
+                    ALLOCATION
+                  </button>
+                </div>
+
+                {/* Panel Area */}
+                <div className="terminal-panel-area">
+                  {activeTab === "charts" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "8px", height: "100%" }}>
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        <div style={{ fontFamily: "var(--font-heading)", fontSize: "7px", color: "var(--muted-gray)", marginBottom: "4px", letterSpacing: "1px" }}>
+                          PRICE PERFORMANCE
+                        </div>
+                        <PriceChart state={state} />
+                      </div>
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        <div style={{ fontFamily: "var(--font-heading)", fontSize: "7px", color: "var(--muted-gray)", marginBottom: "4px", letterSpacing: "1px" }}>
+                          PORTFOLIO PROJECTION
+                        </div>
+                        {projection ? (
+                          <ProjectionChart projection={projection} currentPortfolio={totalPortfolio} />
+                        ) : (
+                          <div style={{ fontFamily: "var(--font-body)", color: "var(--muted-gray)", padding: "16px", textAlign: "center" }}>
+                            Calculating...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {activeTab === "allocation" && (
+                    <div style={{ padding: "12px" }}>
+                      <div style={{ fontFamily: "var(--font-heading)", fontSize: "8px", color: "var(--off-white)", marginBottom: "12px" }}>
+                        CURRENT ALLOCATION
+                      </div>
+                      {state.positions.filter((p) => p.pct > 0).map((pos) => (
+                        <div
+                          key={pos.assetId}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "6px 0",
+                            borderBottom: "1px solid rgba(26,51,85,0.4)",
+                          }}
+                        >
+                          <span style={{ fontFamily: "var(--font-body)", fontSize: "18px", color: "var(--off-white)" }}>
+                            {pos.assetId.split("_")[0].toUpperCase()}
+                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div style={{ width: "80px", height: "8px", background: "var(--terminal-bg)", border: "1px solid var(--panel-border)", overflow: "hidden" }}>
+                              <div style={{ width: `${pos.pct}%`, height: "100%", background: ASSET_COLORS[pos.assetId] ?? "#4a6580" }} />
+                            </div>
+                            <span style={{ fontFamily: "var(--font-heading)", fontSize: "8px", color: ASSET_COLORS[pos.assetId] ?? "var(--off-white)", width: "32px", textAlign: "right" }}>
+                              {pos.pct}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        className="pixel-btn pixel-btn--ghost"
+                        style={{ fontSize: "8px", padding: "8px 16px", marginTop: "12px", width: "100%" }}
+                        onClick={() => setShowRebalance(true)}
+                      >
+                        ⚖ REBALANCE PORTFOLIO
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Portfolio Summary */}
+                <div className="portfolio-summary">
+                  <div>
+                    <div className="portfolio-summary__label">TOTAL VALUE</div>
+                    <div className="portfolio-summary__value">{formatCHF(totalPortfolio)}</div>
+                  </div>
+                  <div className={`portfolio-summary__return ${returnPct >= 0 ? "portfolio-summary__return--up" : "portfolio-summary__return--down"}`}>
+                    {returnPct >= 0 ? "+" : ""}{returnPct.toFixed(1)}%
+                  </div>
+                  <div className="portfolio-summary__alloc-bar">
+                    {state.positions.filter((p) => p.pct > 0).map((pos) => (
+                      <div
+                        key={pos.assetId}
+                        className="alloc-segment"
+                        style={{ flex: pos.pct, background: ASSET_COLORS[pos.assetId] ?? "#4a6580" }}
+                        title={`${pos.assetId}: ${pos.pct}%`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* News Ticker */}
+                <div className="news-ticker">
+                  <span className="news-ticker__badge">MARKET</span>
+                  <span className="news-ticker__content">
+                    {historicalNews
+                      ? `📰 ${historicalNews.name}`
+                      : `Year ${currentYear} • Portfolio: ${formatCHF(totalPortfolio)} • ${isPlaying ? "Simulating..." : "Paused"}`}
+                  </span>
+                </div>
+
+                {/* Controls */}
+                <div className="terminal-controls">
+                  <div className="terminal-status">
+                    Year {currentYear} • Week {((state.currentTick ?? 0) % 52) + 1} • {formatCHF(totalPortfolio)}
+                  </div>
+                  <div className="terminal-progress">
+                    <div className="terminal-progress__fill" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <button
+                      className={`pixel-btn ${isPlaying ? "pixel-btn--red" : "pixel-btn--blue"}`}
+                      style={{ fontSize: "8px", padding: "6px 12px" }}
+                      onClick={isPlaying ? pause : play}
+                    >
+                      {isPlaying ? "⏸" : "▶"} {isPlaying ? "PAUSE" : "PLAY"}
+                    </button>
+                    {([1, 3, 5] as const).map((s) => (
+                      <button
+                        key={s}
+                        className="pixel-btn pixel-btn--ghost"
+                        style={{ fontSize: "8px", padding: "6px 10px" }}
+                        onClick={() => setSpeed(s)}
+                      >
+                        {s}×
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* News overlay (banner + popup) */}
+      <NewsOverlay />
 
       {/* Event modal */}
       {phase === "event" && <EventModal />}
