@@ -156,6 +156,36 @@ export function tickSimulation(state: SimulationState, seed: Seed): TickResult {
   return { state: nextState, eventToFire, historicalNews, isComplete };
 }
 
+// ── Advance to Tick (for Battle Mode) ─────────────────────────────────────
+
+export function advanceToTick(
+  state: SimulationState,
+  targetTick: number,
+  seed: Seed,
+): {
+  state: SimulationState;
+  events: LifeEventDefinition[];
+  historicalNews: HistoricalEvent[];
+} {
+  let currentState = state;
+  const firedEvents: LifeEventDefinition[] = [];
+  const newsItems: HistoricalEvent[] = [];
+
+  while (currentState.currentTick < targetTick) {
+    const result = tickSimulation(currentState, seed);
+    currentState = result.state;
+    if (result.eventToFire) firedEvents.push(result.eventToFire);
+    if (result.historicalNews) newsItems.push(result.historicalNews);
+    // Don't stop on events — in battle mode, events are handled via the room's event window
+  }
+
+  return {
+    state: currentState,
+    events: firedEvents,
+    historicalNews: newsItems,
+  };
+}
+
 // ── Rebalance ──────────────────────────────────────────────────────────────
 
 export function handleRebalance(

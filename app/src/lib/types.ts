@@ -99,6 +99,56 @@ export interface EventChoice {
   portfolio_at_choice: number;
 }
 
+// ── Battle Mode Types ──
+
+export interface BattleRoom {
+  id: string; // 4-char code
+  seed_id: string;
+  created_by: string;
+  status: "waiting" | "countdown" | "playing" | "finished";
+  starting_portfolio: number;
+  monthly_contribution: number;
+  tick_speed: 1 | 3 | 5;
+  event_timeout_secs: number;
+  current_tick: number;
+  total_ticks: number;
+  active_event_key: string | null;
+  event_deadline: string | null;
+  max_players: number;
+  countdown_start: string | null;
+  game_start: string | null;
+  game_end: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface BattlePlayer {
+  id: string;
+  room_id: string;
+  player_id: string;
+  session_id: string | null;
+  is_ready: boolean;
+  allocations: Array<{ assetId: string; pct: number }> | null;
+  current_portfolio: number;
+  is_eliminated: boolean;
+  finished: boolean;
+  final_portfolio: number | null;
+  composite_score: number | null;
+  behavioral_profile: string | null;
+  rank: number | null;
+  joined_at: string;
+  nickname?: string;
+  avatar?: string;
+}
+
+export interface BattleEventChoice {
+  room_id: string;
+  player_id: string;
+  event_key: string;
+  chosen: "a" | "b";
+  chose_at: string;
+}
+
 export interface EventChoiceStats {
   event_key: string;
   total_choices: number;
