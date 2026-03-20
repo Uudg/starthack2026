@@ -73,6 +73,20 @@ const raw = [
 
 Events are sorted by tick and separated by at least 15 ticks to avoid overlap. The crash event tick is taken directly from the seed's `crash_weeks` data — ensuring the market crash event fires when the price data is actually crashing.
 
+### Battle Mode Scheduling
+
+In [PvP Battle Mode](/docs/pvp-battle), events fire at fixed ticks rather than randomised ranges — both players must face the same event at the same moment for fairness:
+
+| Fixed tick | Event |
+|-----------|-------|
+| 60 | `career.opportunity` |
+| 140 | `personal.housing` |
+| 250 (or seed crash) | `crisis.crash_news` |
+| 280 | `personal.health` |
+| 400 | `crisis.windfall` |
+
+The event definitions, options, and effects are identical to solo mode. Only the scheduling is deterministic.
+
 ## Event Chaining
 
 After the player makes a choice, `scheduleFollowUpEvent()` determines whether a follow-up should be queued:

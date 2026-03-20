@@ -119,6 +119,128 @@ Streams an AI coach message. See [AI Coach](/docs/ai-coach) for details.
 
 ---
 
+## Battle Mode Endpoints
+
+All battle endpoints live under `/api/battle/rooms/`. See [PvP Battle Mode](/docs/pvp-battle) for the full game flow.
+
+### `POST /api/battle/rooms`
+
+Creates a new battle room with a 4-character code.
+
+**Request body:**
+```json
+{
+  "playerId": "uuid",
+  "seedId": "uuid",
+  "startingPortfolio": 10000,
+  "monthlyContribution": 500,
+  "tickSpeed": 3
+}
+```
+
+**Response:** `{ "room": BattleRoom, "player": BattlePlayer }`
+
+---
+
+### `GET /api/battle/rooms`
+
+Lists active rooms with status `waiting` (for a lobby/browse view).
+
+---
+
+### `GET /api/battle/rooms/[id]`
+
+Returns room details and all players (with nickname/avatar from the `players` table).
+
+---
+
+### `POST /api/battle/rooms/[id]/join`
+
+Joins an existing room. Validates: room is `waiting`, not full, player not already in.
+
+**Request body:**
+```json
+{ "playerId": "uuid" }
+```
+
+---
+
+### `POST /api/battle/rooms/[id]/ready`
+
+Marks a player as ready with their chosen allocation. Allocations must sum to 100%. When both players are ready, room status moves to `countdown`.
+
+**Request body:**
+```json
+{
+  "playerId": "uuid",
+  "allocations": [{ "assetId": "smi", "pct": 40 }, { "assetId": "ch_bond", "pct": 60 }]
+}
+```
+
+---
+
+### `POST /api/battle/rooms/[id]/start`
+
+Host-only. Validates `countdown` status, creates `game_sessions` for each player, sets status to `playing`, and kicks off the server-side tick loop.
+
+**Request body:**
+```json
+{ "playerId": "uuid" }
+```
+
+---
+
+### `POST /api/battle/rooms/[id]/tick`
+
+Internal endpoint called by the server's self-scheduling tick loop. Advances the room's `current_tick`, fires life events, and schedules the next tick. Not intended to be called by clients directly.
+
+---
+
+### `POST /api/battle/rooms/[id]/event-choice`
+
+Submits a player's choice for the current life event.
+
+**Request body:**
+```json
+{ "playerId": "uuid", "eventKey": "career.opportunity", "chosen": "a" }
+```
+
+**Response:** `{ "yourChoice": "a", "opponentChoice": "b" | null, "bothChosen": true | false }`
+
+Duplicate submissions return 409. When both players have chosen, the event window is cleared and ticking resumes.
+
+---
+
+### `POST /api/battle/rooms/[id]/portfolio`
+
+Fire-and-forget portfolio value update. Called periodically by clients so opponents can see each other's progress.
+
+**Request body:**
+```json
+{ "playerId": "uuid", "portfolio": 12450 }
+```
+
+---
+
+### `POST /api/battle/rooms/[id]/finish`
+
+Reports final results. When both players have finished, the server ranks them and sets the room to `finished`.
+
+**Request body:**
+```json
+{
+  "playerId": "uuid",
+  "finalPortfolio": 14320,
+  "compositeScore": 72.5,
+  "behavioralProfile": "diamond_hands",
+  "snapshots": [...]
+}
+```
+
+**Response:** `{ "yourResult": BattlePlayer, "opponentResult": BattlePlayer, "bothFinished": bool, "winner": "uuid" | "tie" | null }`
+
+---
+
 ## Database Schema
 
 All tables live in Supabase (PostgreSQL) with UUID primary keys.
@@ -134,6 +256,9 @@ All tables live in Supabase (PostgreSQL) with UUID primary keys.
 | `event_choices` | Individual event choice records |
 | `event_choice_stats` | Auto-aggregated A/B split per event (DB trigger) |
 | `leaderboard` | **View** (not table): top sessions sorted by composite score |
+| `battle_rooms` | PvP room state (code, status, tick, event window, config) |
+| `battle_players` | Per-room player state (ready, allocations, portfolio, results, rank) |
+| `battle_event_choices` | Event choices per player per room (UNIQUE constraint prevents duplicates) |
 
 ### Key relationships
 
@@ -141,6 +266,14 @@ All tables live in Supabase (PostgreSQL) with UUID primary keys.
 players ──< game_sessions ──< portfolio_snapshots
              │
              └──< event_choices ──> event_choice_stats (via DB trigger)
+
+players ──< battle_players ──< battle_event_choices
+                │
+                └──> battle_rooms
+                        │
+                        └──> seeds
 ```
 
 `game_sessions.chain_state` is stored as JSONB — the full `ChainState` object capturing which career, personal, and crisis paths the player took.
+
+In Battle Mode, each `battle_player` is optionally linked to a `game_session` (created at game start), so battle results also appear in the global leaderboard.
