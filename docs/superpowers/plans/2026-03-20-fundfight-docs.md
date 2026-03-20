@@ -1059,10 +1059,10 @@ Rewards smart choices during life events. Events that teach the most important l
 
 | Event | Optimal choice | Points |
 |-------|---------------|--------|
-| `crisis.crash_news` — stay the course (option B) | 25 |
-| `career.opportunity` — take the job (option A) | 15 |
-| `crisis.windfall` — invest all (option A) | 10 |
-| All other events | 5 each |
+| `crisis.crash_news` | Stay the course (option B) | 25 |
+| `career.opportunity` | Take the job (option A) | 15 |
+| `crisis.windfall` | Invest all (option A) | 10 |
+| All other events | — | 5 each |
 
 The raw points are normalised to 0–100 against the maximum possible score for the events that actually fired. If no events fired, the event score defaults to 50 (neutral).
 
