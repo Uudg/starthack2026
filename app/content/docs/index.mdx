@@ -30,16 +30,17 @@ FundFight is a full-stack Next.js application with four distinct layers:
 │  Next.js API Routes (Server)                            │
 │  /api/players  /api/sessions  /api/seeds                │
 │  /api/coach    /api/leaderboard  /api/event-choices     │
-└──────────────────────┬───────────────┬──────────────────┘
-                       │               │
-          ┌────────────▼───┐     ┌─────▼────────────┐
-          │  Supabase      │     │  Claude Haiku API │
-          │  (PostgreSQL)  │     │  (AI Coach)       │
-          │  9 tables/views│     │  Streaming SSE    │
-          └────────────────┘     └──────────────────┘
+│  /api/battle/rooms (PvP)                                │
+└──────────────┬───────────────┬──────────────────────────┘
+               │               │
+  ┌────────────▼───┐     ┌─────▼────────────┐
+  │  Supabase      │     │  Claude Haiku API │
+  │  (PostgreSQL + │     │  (AI Coach)       │
+  │   Realtime)    │     │  Streaming SSE    │
+  └────────────────┘     └──────────────────┘
 ```
 
-**Key design decision:** The simulation engine runs entirely client-side in TypeScript. All financial calculations — returns, rebalancing, Monte Carlo projections, scoring — happen in the browser. The server handles only persistence and AI coach messages. This keeps the game real-time and responsive regardless of network conditions.
+**Key design decision:** The simulation engine runs entirely client-side in TypeScript. All financial calculations — returns, rebalancing, Monte Carlo projections, scoring — happen in the browser. The server handles persistence, AI coach messages, and PvP tick broadcasting. In Battle Mode, the server advances a shared tick counter via Supabase Realtime, and each client runs its own engine locally using `advanceToTick()` to stay in sync.
 
 ## Game Flow
 
@@ -53,6 +54,8 @@ A single game session follows this sequence:
 6. **Life events** — financial decisions fire at predetermined ticks
 7. **Results** — composite score, behavioural profile, comparison to benchmark
 8. **Leaderboard** — final score posted to global rankings
+
+In **Battle Mode**, two players compete head-to-head on the same scenario. The server broadcasts ticks via Supabase Realtime; both players face the same events at the same ticks but make independent decisions. See [PvP Battle Mode](/docs/pvp-battle) for details.
 
 ## Tech Stack
 

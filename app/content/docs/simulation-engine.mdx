@@ -88,6 +88,23 @@ The `useGameEngine` hook runs a `setInterval` at different rates:
 | 3× | 267ms/tick | ~2.3 minutes |
 | 5× | 160ms/tick | ~83 seconds |
 
+## Batch Advancing: `advanceToTick()`
+
+In [PvP Battle Mode](/docs/pvp-battle), the server broadcasts tick numbers and clients need to catch up to the current tick. `advanceToTick()` runs multiple ticks synchronously without a timer:
+
+```ts
+function advanceToTick(state, targetTick, seed) {
+  while (state.currentTick < targetTick) {
+    const result = tickSimulation(state, seed);
+    state = result.state;
+    // Collect any events or news that fired
+  }
+  return { state, events, historicalNews };
+}
+```
+
+This reuses the same `tickSimulation()` pure function — the same return calculations, contribution logic, and event scheduling. The only difference is that ticks are consumed in a loop rather than driven by `setInterval`. This keeps solo and battle mode behaviour identical.
+
 ## Analytics Tracking
 
 Every tick updates key behavioural metrics used for scoring:
