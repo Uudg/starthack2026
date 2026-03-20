@@ -82,10 +82,13 @@ Each page follows a two-layer structure:
 
 ## Files to Create
 
+The `app/` directory is the Next.js workspace root in this monorepo. `app/src/lib/` already exists. Content lives at `app/content/` (project root, outside `src/`), which is the Fumadocs convention and is resolved via `source.config.ts` at `app/source.config.ts`.
+
 ```
 app/
   content/
     docs/
+      meta.json                    # Sidebar order & labels
       index.mdx                    # Overview
       market-data.mdx              # Market Data & Scenarios
       simulation-engine.mdx        # The Simulation Engine
@@ -102,13 +105,21 @@ app/
           page.tsx                 # Fumadocs dynamic route
         layout.tsx                 # Fumadocs layout
     lib/
-      source.ts                    # Fumadocs source config
-  source.config.ts                 # Fumadocs content config
+      source.ts                    # Fumadocs source config (alongside existing hooks/engine)
+  source.config.ts                 # Fumadocs content config (app workspace root)
 ```
+
+### Life Event Content Note
+The MDX content for life events will reference the actual event definitions from `app/src/lib/engine/events.ts` — listing each event by name with its A/B choices and financial effects. The spec intentionally avoids hardcoding a count here; the implementer reads the source to enumerate them accurately.
 
 ## Dependencies to Add
 
 - `fumadocs-core`
 - `fumadocs-ui`
 - `fumadocs-mdx`
-- `@fumadocs-ui/rehype-*` (as needed)
+- `rehype-pretty-code` (syntax highlighting in MDX)
+- `shiki` (tokenizer for rehype-pretty-code)
+
+## Compatibility Notes
+
+The existing app runs Next.js 16.2.0 and React 19.2.4 (bleeding-edge). Fumadocs 15.x supports React 19 and Next.js 15+. Verify peer dependencies before installing; if conflicts arise, pin to the most recent Fumadocs version with confirmed React 19 support.
